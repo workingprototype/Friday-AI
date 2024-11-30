@@ -2,40 +2,44 @@ import speech_recognition as sr
 import pyttsx3
 import requests
 import json
+import time  # Import time to use sleep
 
 # Initialize the speech engine
 engine = pyttsx3.init()
 
-# Set speech rate and volume (optional adjustments)
-engine.setProperty('rate', 160)    # Increased speed of speech
-engine.setProperty('volume', 1.0)  # Volume level (0.0 to 1.0)
+# Set speech rate and volume
+engine.setProperty('rate', 140)    # Reduced speech rate for smoother output
+engine.setProperty('volume', 1.0)  # Set volume level (0.0 to 1.0)
 
-# Function to capture microphone input and process speech after a short pause
+# Function to capture microphone input and process speech
 def listen_and_recognize():
     recognizer = sr.Recognizer()
     
     # Lower energy threshold to make the mic more sensitive to quieter sounds
-    recognizer.energy_threshold = 150  # Adjust sensitivity (lower means more sensitive)
-    recognizer.pause_threshold = 0.8  # Shorten pause detection to make it more responsive
+    recognizer.energy_threshold = 200  # Adjust sensitivity (lower means more sensitive)
+    recognizer.pause_threshold = 0.8   # Shorten pause detection to make it more responsive
     
     with sr.Microphone() as source:
-        print("Listening... (Pause to indicate you're done speaking)")
+        print("Listening... (Say 'Goodbye' to stop)")
         
-        # Optional: Comment this out if the environment is quiet enough
-        # recognizer.adjust_for_ambient_noise(source)  # Adjust for ambient noise
-        
-        audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)  # Set timeout to improve speed
-        try:
-            # Use Google Speech Recognition to transcribe the speech
-            text = recognizer.recognize_google(audio)
-            print(f"Transcribed speech: {text}")
-            return text
-        except sr.UnknownValueError:
-            print("Sorry, I did not understand the audio.")
-            return None
-        except sr.RequestError:
-            print("Sorry, there was an issue with the speech recognition service.")
-            return None
+        # Continuously listen for speech (no timeout)
+        while True:
+            try:
+                audio = recognizer.listen(source)  # No timeout, keeps listening
+                text = recognizer.recognize_google(audio).lower()
+                print(f"Transcribed speech: {text}")
+                
+                if "goodbye" in text:
+                    print("Goodbye detected. Stopping the program.")
+                    return "goodbye"
+                return text
+            except sr.UnknownValueError:
+                print("Sorry, I did not understand the audio.")
+                continue  # Continue listening after a misunderstanding
+            except sr.RequestError:
+                print("Sorry, there was an issue with the speech recognition service.")
+                return None
+
 
 # Function to send the recognized text to the Friday instance and get a response
 def query_friday(text):
@@ -68,16 +72,25 @@ def query_friday(text):
         print(f"An error occurred: {e}")
         return None
 
-# Function to convert text to speech
+# Function to convert text to speech, adding slight pauses between sentences for naturalness
 def speak_text(text):
-    engine.say(text)
-    engine.runAndWait()
+    # Split the response into sentences and add a small pause for naturalness
+    sentences = text.split('. ')
+    for sentence in sentences:
+        engine.say(sentence.strip())
+        engine.runAndWait()
+        time.sleep(0.5)  # Adds a 0.5 second pause between sentences
 
 # Main function to handle conversational speech-to-text, query Friday, and text-to-speech
 def main():
     while True:
         # Capture speech from the microphone
         user_input = listen_and_recognize()
+        
+        # If 'Goodbye' was said, exit the loop and stop the program
+        if user_input == "goodbye":
+            break
+        
         if user_input:
             # Send the transcribed input to Friday and get the model's response
             response = query_friday(user_input)
@@ -89,7 +102,7 @@ def main():
                 print("No response from Friday.")
         else:
             print("Please try speaking again.")
-        print("Listening again... (Press Ctrl+C to exit)")
+        print("Listening again... (Say 'Goodbye' to stop)")
 
 if __name__ == "__main__":
     main()

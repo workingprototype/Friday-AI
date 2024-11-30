@@ -1,21 +1,19 @@
 import speech_recognition as sr
-import pyttsx3
 import requests
 import json
+from bark import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
+import sounddevice as sd
 
-# Initialize the speech engine
-engine = pyttsx3.init()
-
-# Set speech rate and volume (optional adjustments)
-engine.setProperty('rate', 160)    # Increased speed of speech
-engine.setProperty('volume', 1.0)  # Volume level (0.0 to 1.0)
+# Download and load all Bark models
+preload_models()
 
 # Function to capture microphone input and process speech after a short pause
 def listen_and_recognize():
     recognizer = sr.Recognizer()
     
     # Lower energy threshold to make the mic more sensitive to quieter sounds
-    recognizer.energy_threshold = 150  # Adjust sensitivity (lower means more sensitive)
+    recognizer.energy_threshold = 20  # Adjust sensitivity (lower means more sensitive)
     recognizer.pause_threshold = 0.8  # Shorten pause detection to make it more responsive
     
     with sr.Microphone() as source:
@@ -42,7 +40,7 @@ def query_friday(text):
     url = "http://localhost:11434/api/chat"  # Updated API endpoint for chat
     payload = {
         "model": "technobyte/arliai-rpmax-12b-v1.1:q4_k_m",  # Adjust to the correct model
-         "messages": [
+        "messages": [
             { "role": "system", "content": "Respond in a short, friendly, and comforting way." },  # System prompt
             { "role": "user", "content": text }
         ]
@@ -68,12 +66,19 @@ def query_friday(text):
         print(f"An error occurred: {e}")
         return None
 
-# Function to convert text to speech
-def speak_text(text):
-    engine.say(text)
-    engine.runAndWait()
+# Function to convert text to speech using Bark
+def speak_text_with_bark(text):
+    # Generate audio using Bark's generate_audio function
+    audio_array = generate_audio(text)
+    
+    # Save the audio as a file (optional)
+    write_wav("response_bark.wav", SAMPLE_RATE, audio_array)
+    
+    # Play the generated audio using sounddevice
+    sd.play(audio_array, samplerate=SAMPLE_RATE)
+    sd.wait()  # Wait until audio playback is finished
 
-# Main function to handle conversational speech-to-text, query Friday, and text-to-speech
+# Main function to handle conversational speech-to-text, query Friday, and text-to-speech with Bark
 def main():
     while True:
         # Capture speech from the microphone
@@ -83,8 +88,8 @@ def main():
             response = query_friday(user_input)
             if response:
                 print(f"Friday: {response}")
-                # Convert Friday's response to speech
-                speak_text(response)
+                # Convert Friday's response to speech using Bark
+                speak_text_with_bark(response)
             else:
                 print("No response from Friday.")
         else:
